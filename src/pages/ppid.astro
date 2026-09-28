@@ -1,0 +1,3529 @@
+---
+import MainLayout from "../layouts/MainLayout.astro";
+
+export const prerender = false;
+
+const title = "PPID - DPMPTSP Kota Surabaya";
+
+const API_KATEGORI =
+  "https://dpm-ptsp.surabaya.go.id/sso/apippid.php";
+
+const API_ITEM =
+  "https://dpm-ptsp.surabaya.go.id/sso/apippid_view.php";
+
+const API_USERNAME =
+  import.meta.env.API_BERITA_USERNAME;
+
+const API_PASSWORD =
+  import.meta.env.API_BERITA_PASSWORD;
+
+const API_HEADERS = {
+  username: API_USERNAME,
+  password: API_PASSWORD,
+  Accept: "application/json",
+  "Content-Type":
+    "application/x-www-form-urlencoded",
+};
+
+let kategori = [];
+let items = [];
+let apiError = "";
+
+/* =========================================================
+   API KATEGORI
+========================================================= */
+
+try {
+  const response = await fetch(API_KATEGORI, {
+    method: "POST",
+    headers: API_HEADERS,
+    body: new URLSearchParams(),
+  });
+
+  const result = await response.json();
+
+  console.log("API PPID KATEGORI:", result);
+
+  if (!response.ok) {
+    throw new Error(
+      result?.message ||
+      `HTTP ${response.status}`
+    );
+  }
+
+  if (Array.isArray(result?.data)) {
+    kategori = result.data;
+  } else if (Array.isArray(result)) {
+    kategori = result;
+  } else {
+    throw new Error(
+      result?.message ||
+      "Data kategori PPID tidak ditemukan."
+    );
+  }
+
+} catch (error) {
+
+  console.error(
+    "API PPID KATEGORI ERROR:",
+    error
+  );
+
+  apiError =
+    error instanceof Error
+      ? error.message
+      : "Gagal mengambil kategori PPID.";
+}
+
+
+/* =========================================================
+   API ITEM
+========================================================= */
+
+try {
+
+  const response = await fetch(API_ITEM, {
+    method: "POST",
+    headers: API_HEADERS,
+
+    body: new URLSearchParams({
+      id: "",
+      kategori_id: "",
+    }),
+  });
+
+  const result = await response.json();
+
+  console.log("API PPID ITEM:", result);
+
+  if (!response.ok) {
+    throw new Error(
+      result?.message ||
+      `HTTP ${response.status}`
+    );
+  }
+
+  if (Array.isArray(result?.data)) {
+
+    items = result.data;
+
+  } else if (Array.isArray(result)) {
+
+    items = result;
+
+  } else {
+
+    throw new Error(
+      result?.message ||
+      "Data item PPID tidak ditemukan."
+    );
+
+  }
+
+} catch (error) {
+
+  console.error(
+    "API PPID ITEM ERROR:",
+    error
+  );
+
+  if (!apiError) {
+
+    apiError =
+      error instanceof Error
+        ? error.message
+        : "Gagal mengambil data PPID.";
+
+  }
+
+}
+
+
+/* =========================================================
+   NORMALISASI KATEGORI
+========================================================= */
+
+kategori = kategori.map((kat) => {
+
+  const nama =
+    kat.nama_kategori ||
+    kat.nama ||
+    kat.judul ||
+    "Kategori PPID";
+
+  const slug =
+    kat.slug ||
+    String(nama)
+      .toLowerCase()
+      .trim()
+      .replace(
+        /[^a-z0-9]+/g,
+        "-"
+      )
+      .replace(
+        /^-+|-+$/g,
+        "");
+
+  return {
+
+    ...kat,
+
+    id:
+      Number(kat.id),
+
+    nama_kategori:
+      nama,
+
+    slug:
+      slug,
+
+  };
+
+});
+
+
+/* =========================================================
+   NORMALISASI ITEM
+========================================================= */
+
+items = items.map((item) => {
+
+  return {
+
+    ...item,
+
+    id:
+      Number(item.id),
+
+    kategori_id:
+      Number(item.kategori_id),
+
+    judul:
+      item.judul || "",
+
+    isi:
+      item.isi || "",
+
+    file_url:
+      item.file_url || "",
+
+    urutan:
+      Number(item.urutan || 0),
+
+    nama_kategori:
+      item.nama_kategori || "",
+
+    slug:
+      item.slug || "",
+
+  };
+
+});
+
+
+/* =========================================================
+   SORT
+========================================================= */
+
+kategori.sort(
+  (a, b) =>
+    Number(a.id || 0) -
+    Number(b.id || 0)
+);
+
+
+items.sort((a, b) => {
+
+  const kategoriCompare =
+    Number(a.kategori_id || 0) -
+    Number(b.kategori_id || 0);
+
+  if (kategoriCompare !== 0) {
+    return kategoriCompare;
+  }
+
+  const urutanCompare =
+    Number(a.urutan || 0) -
+    Number(b.urutan || 0);
+
+  if (urutanCompare !== 0) {
+    return urutanCompare;
+  }
+
+  return (
+    Number(a.id || 0) -
+    Number(b.id || 0)
+  );
+
+});
+
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const getItems = (kategoriId) => {
+
+  return items.filter(
+    (item) =>
+      Number(item.kategori_id) ===
+      Number(kategoriId)
+  );
+
+};
+
+
+const getKategoriCount = (kategoriId) => {
+
+  return getItems(kategoriId).length;
+
+};
+
+
+const iconKategori = {
+
+  berkala:
+    "fa-calendar-days",
+
+  merta:
+    "fa-bolt",
+
+  saat:
+    "fa-folder-open",
+
+  kecuali:
+    "fa-lock",
+
+};
+
+
+const descKategori = {
+
+  berkala:
+    "Informasi yang wajib disediakan dan diumumkan secara berkala oleh badan publik.",
+
+  merta:
+    "Informasi yang berkaitan dengan kepentingan publik dan wajib diumumkan secara serta-merta.",
+
+  saat:
+    "Informasi yang wajib tersedia setiap saat dan dapat diakses oleh masyarakat.",
+
+  kecuali:
+    "Informasi yang tidak dapat diberikan kepada publik sesuai dengan ketentuan yang berlaku.",
+
+};
+
+
+const getIcon = (slug) => {
+
+  return (
+    iconKategori[slug] ||
+    "fa-folder"
+  );
+
+};
+
+
+const getDescription = (slug) => {
+
+  return (
+    descKategori[slug] ||
+    "Informasi publik DPMPTSP Kota Surabaya."
+  );
+
+};
+
+
+const getExcerpt = (html) => {
+
+  if (!html) {
+    return "";
+  }
+
+  return String(html)
+
+    .replace(
+      /<script[\s\S]*?<\/script>/gi,
+      ""
+    )
+
+    .replace(
+      /<style[\s\S]*?<\/style>/gi,
+      ""
+    )
+
+    .replace(
+      /<br\s*\/?>/gi,
+      " "
+    )
+
+    .replace(
+      /<\/li>/gi,
+      " "
+    )
+
+    .replace(
+      /<[^>]*>/g,
+      " "
+    )
+
+    .replace(
+      /&nbsp;/gi,
+      " "
+    )
+
+    .replace(
+      /&amp;/gi,
+      "&"
+    )
+
+    .replace(
+      /&lt;/gi,
+      "<"
+    )
+
+    .replace(
+      /&gt;/gi,
+      ">"
+    )
+
+    .replace(
+      /&quot;/gi,
+      '"'
+    )
+
+    .replace(
+      /&#39;/gi,
+      "'"
+    )
+
+    .replace(
+      /\s+/g,
+      " "
+    )
+
+    .trim()
+
+    .slice(
+      0,
+      180
+    );
+
+};
+---
+
+<MainLayout
+  title={title}
+  description="Platform layanan keterbukaan informasi publik DPMPTSP Kota Surabaya."
+>
+
+  <main class="ppid-page">
+
+
+    <!-- =====================================================
+         HERO
+    ====================================================== -->
+
+    <section class="ppid-hero">
+
+      <div class="hero-orb hero-orb-one"></div>
+      <div class="hero-orb hero-orb-two"></div>
+
+      <div class="container">
+
+        <div class="hero-grid">
+
+          <div class="hero-content">
+
+            <div class="hero-badge">
+
+              <span>
+                <i class="fa-solid fa-building-columns"></i>
+              </span>
+
+              PPID DPMPTSP
+
+            </div>
+
+
+            <h1>
+              Keterbukaan
+              <span>Informasi Publik</span>
+            </h1>
+
+
+            <p class="hero-description">
+
+              Akses informasi publik DPMPTSP Kota Surabaya
+              dengan mudah, cepat, transparan, dan dapat
+              dipertanggungjawabkan.
+
+            </p>
+
+
+            <div class="hero-actions">
+
+              <a
+                href="#informasi"
+                class="hero-button primary"
+              >
+
+                <i class="fa-solid fa-folder-open"></i>
+
+                Jelajahi Informasi
+
+              </a>
+
+
+              <a
+                href="#kontak"
+                class="hero-button secondary"
+              >
+
+                <i class="fa-solid fa-phone"></i>
+
+                Hubungi PPID
+
+              </a>
+
+            </div>
+
+          </div>
+
+
+          <div class="hero-card">
+
+            <div class="hero-card-icon">
+
+              <i class="fa-solid fa-building-columns"></i>
+
+            </div>
+
+            <strong>
+              PPID DPMPTSP
+            </strong>
+
+            <span>
+              Pejabat Pengelola Informasi dan Dokumentasi
+            </span>
+
+            <div class="hero-card-line"></div>
+
+            <small>
+              Melayani kebutuhan informasi publik
+              masyarakat Kota Surabaya.
+            </small>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <!-- =====================================================
+         ERROR
+    ====================================================== -->
+
+    {apiError && (
+
+      <section class="api-error">
+
+        <div class="container">
+
+          <div class="error-box">
+
+            <i class="fa-solid fa-triangle-exclamation"></i>
+
+            <div>
+
+              <strong>
+                Data PPID belum dapat dimuat
+              </strong>
+
+              <p>
+                {apiError}
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+    )}
+
+
+
+    <!-- =====================================================
+         INFORMASI
+    ====================================================== -->
+
+    <section
+      id="informasi"
+      class="category-section"
+    >
+
+      <div class="container">
+
+        <div class="section-heading">
+
+          <div>
+
+            <span class="section-eyebrow">
+
+              INFORMASI PUBLIK
+
+            </span>
+
+
+            <h2>
+
+              Temukan informasi
+              <span>yang Anda butuhkan</span>
+
+            </h2>
+
+          </div>
+
+
+          <p>
+
+            Pilih kategori informasi publik
+            untuk melihat dokumen dan informasi
+            yang tersedia.
+
+          </p>
+
+        </div>
+
+
+        <div class="information-guide">
+
+          <span class="guide-icon">
+
+            <i class="fa-solid fa-hand-pointer"></i>
+
+          </span>
+
+          <span>
+
+            Silakan pilih salah satu kategori
+            informasi di bawah.
+
+          </span>
+
+        </div>
+
+
+        <div class="category-scroll">
+
+          <div class="category-grid">
+
+            {
+              kategori.map((kat) => (
+
+                <a
+                  href={`#kategori-${kat.slug}`}
+                  class="category-card"
+                >
+
+                  <div class="category-top-line"></div>
+
+
+                  <div class="category-icon">
+
+                    <i
+                      class={`fa-solid ${getIcon(kat.slug)}`}
+                    ></i>
+
+                  </div>
+
+
+                  <div class="category-content">
+
+                    <h3>
+                      {kat.nama_kategori}
+                    </h3>
+
+
+                    <p>
+                      {getDescription(kat.slug)}
+                    </p>
+
+
+                    <div class="category-bottom">
+
+                      <span>
+
+                        <strong>
+                          {getKategoriCount(kat.id)}
+                        </strong>
+
+                        informasi
+
+                      </span>
+
+
+                      <span class="category-cta">
+
+                        Lihat
+
+                        <i class="fa-solid fa-arrow-right"></i>
+
+                      </span>
+
+                    </div>
+
+                  </div>
+
+                </a>
+
+              ))
+            }
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <!-- =====================================================
+         CONTENT
+    ====================================================== -->
+
+    <section class="information-section">
+
+      <div class="container">
+
+        <div class="information-layout">
+
+
+          <!-- MAIN -->
+
+          <div class="information-main">
+
+            {
+
+              kategori.map((kat) => {
+
+                const categoryItems =
+                  getItems(kat.id);
+
+                return (
+
+                  <section
+                    id={`kategori-${kat.slug}`}
+                    class="db-category"
+                  >
+
+                    <div class="db-category-heading">
+
+                      <div class="db-category-icon">
+
+                        <i
+                          class={`fa-solid ${getIcon(kat.slug)}`}
+                        ></i>
+
+                      </div>
+
+
+                      <div>
+
+                        <span>
+                          INFORMASI PUBLIK
+                        </span>
+
+                        <h2>
+                          {kat.nama_kategori}
+                        </h2>
+
+                        <p>
+                          {getDescription(kat.slug)}
+                        </p>
+
+                      </div>
+
+                    </div>
+
+
+                    {
+                      categoryItems.length > 0 ? (
+
+                        <div class="db-list">
+
+                          {
+
+                            categoryItems.map(
+                              (item) => (
+
+                                <article
+                                  class="db-item"
+                                >
+
+                                  <div class="db-item-icon">
+
+                                    <i class="fa-solid fa-file-lines"></i>
+
+                                  </div>
+
+
+                                  <div class="db-item-content">
+
+                                    <small>
+
+                                      {item.nama_kategori ||
+                                        kat.nama_kategori}
+
+                                    </small>
+
+
+                                    <h3>
+                                      {item.judul}
+                                    </h3>
+
+
+                                    {
+                                      item.isi && (
+
+                                        <p class="db-item-description">
+
+                                          {getExcerpt(
+                                            item.isi
+                                          )}
+
+                                          {getExcerpt(
+                                            item.isi
+                                          ).length >= 180
+                                            ? "..."
+                                            : ""}
+
+                                        </p>
+
+                                      )
+                                    }
+
+                                  </div>
+
+
+                                  <div class="db-item-action">
+
+                                    {
+
+                                      item.file_url ? (
+
+                                        <a
+                                          href={item.file_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          class="download-button"
+                                        >
+
+                                          <span>
+                                            Unduh
+                                          </span>
+
+                                          <i class="fa-solid fa-download"></i>
+
+                                        </a>
+
+                                      ) : (
+
+                                        <button
+                                          type="button"
+                                          class="detail-button"
+                                          data-title={item.judul}
+                                          data-id={item.id}
+                                        >
+
+                                          <span>
+                                            Detail
+                                          </span>
+
+                                          <i class="fa-solid fa-arrow-right"></i>
+
+                                        </button>
+
+                                      )
+
+                                    }
+
+                                  </div>
+
+
+                                  {
+
+                                    !item.file_url && (
+
+                                      <template
+                                        id={`ppid-content-${item.id}`}
+                                      >
+
+                                        <Fragment
+                                          set:html={
+                                            item.isi || ""
+                                          }
+                                        />
+
+                                      </template>
+
+                                    )
+
+                                  }
+
+                                </article>
+
+                              )
+                            )
+
+                          }
+
+                        </div>
+
+                      ) : (
+
+                        <div class="empty-state">
+
+                          <i class="fa-solid fa-folder-open"></i>
+
+                          <strong>
+                            Belum ada informasi
+                          </strong>
+
+                          <span>
+                            Informasi pada kategori ini
+                            belum tersedia.
+                          </span>
+
+                        </div>
+
+                      )
+
+                    }
+
+                  </section>
+
+                );
+
+              })
+
+            }
+
+          </div>
+
+
+
+          <!-- SIDEBAR -->
+
+          <aside
+            id="kontak"
+            class="information-sidebar"
+          >
+
+            <div class="contact-card">
+
+              <div class="contact-card-header">
+
+                <span class="contact-icon">
+
+                  <i class="fa-solid fa-headset"></i>
+
+                </span>
+
+
+                <div>
+
+                  <small>
+                    LAYANAN PPID
+                  </small>
+
+                  <h3>
+                    Hubungi PPID
+                  </h3>
+
+                </div>
+
+              </div>
+
+
+              <div class="contact-list">
+
+
+                <div class="contact-item">
+
+                  <span>
+
+                    <i class="fa-solid fa-location-dot"></i>
+
+                  </span>
+
+                  <div>
+
+                    <strong>
+                      Alamat
+                    </strong>
+
+                    <p>
+                      Jl. Tunjungan No. 1-3
+                      Kota Surabaya
+                    </p>
+
+                  </div>
+
+                </div>
+
+
+                <div class="contact-item">
+
+                  <span>
+
+                    <i class="fa-solid fa-phone"></i>
+
+                  </span>
+
+                  <div>
+
+                    <strong>
+                      Telepon
+                    </strong>
+
+                    <a href="tel:03199000000">
+                      (031) 99000000
+                    </a>
+
+                  </div>
+
+                </div>
+
+
+                <div class="contact-item">
+
+                  <span>
+
+                    <i class="fa-solid fa-envelope"></i>
+
+                  </span>
+
+                  <div>
+
+                    <strong>
+                      Email
+                    </strong>
+
+                    <a href="mailto:ppid@dpmptsp.surabaya.go.id">
+                      ppid@dpmptsp.surabaya.go.id
+                    </a>
+
+                  </div>
+
+                </div>
+
+
+                <div class="contact-item">
+
+                  <span>
+
+                    <i class="fa-solid fa-globe"></i>
+
+                  </span>
+
+                  <div>
+
+                    <strong>
+                      Website
+                    </strong>
+
+                    <a
+                      href="https://dpm-ptsp.surabaya.go.id"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      dpm-ptsp.surabaya.go.id
+                    </a>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+
+              <div class="social-title">
+                Ikuti kami
+              </div>
+
+
+              <div class="social-links">
+
+                <a
+                  href="#"
+                  aria-label="YouTube"
+                >
+                  <i class="fa-brands fa-youtube"></i>
+                </a>
+
+                <a
+                  href="#"
+                  aria-label="WhatsApp"
+                >
+                  <i class="fa-brands fa-whatsapp"></i>
+                </a>
+
+                <a
+                  href="#"
+                  aria-label="Facebook"
+                >
+                  <i class="fa-brands fa-facebook-f"></i>
+                </a>
+
+                <a
+                  href="#"
+                  aria-label="Instagram"
+                >
+                  <i class="fa-brands fa-instagram"></i>
+                </a>
+
+              </div>
+
+            </div>
+
+
+
+            <div class="request-card">
+
+              <div class="request-icon">
+
+                <i class="fa-solid fa-file-circle-plus"></i>
+
+              </div>
+
+
+              <h3>
+                Butuh Informasi?
+              </h3>
+
+
+              <p>
+
+                Sampaikan permohonan informasi
+                kepada PPID DPMPTSP Kota Surabaya.
+
+              </p>
+
+
+              <a
+                href="#"
+                class="request-button"
+              >
+
+                Ajukan Permohonan
+
+                <i class="fa-solid fa-arrow-right"></i>
+
+              </a>
+
+            </div>
+
+          </aside>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <!-- =====================================================
+         COMMITMENT
+    ====================================================== -->
+
+    <section class="commitment-section">
+
+      <div class="container">
+
+        <div class="commitment-box">
+
+          <div class="commitment-icon">
+
+            <i class="fa-solid fa-shield-halved"></i>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              KOMITMEN KETERBUKAAN
+            </span>
+
+            <h2>
+              Informasi publik untuk masyarakat
+            </h2>
+
+            <p>
+
+              DPMPTSP Kota Surabaya berkomitmen
+              memberikan layanan informasi publik
+              yang transparan, mudah diakses,
+              dan sesuai dengan ketentuan
+              peraturan perundang-undangan.
+
+            </p>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+
+
+  <!-- =======================================================
+       DETAIL MODAL
+  ======================================================== -->
+
+  <div
+    id="ppidModal"
+    class="ppid-modal"
+    aria-hidden="true"
+  >
+
+    <div class="ppid-modal-backdrop"></div>
+
+
+    <div
+      class="ppid-modal-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ppidModalTitle"
+    >
+
+      <div class="ppid-modal-header">
+
+        <div>
+
+          <span>
+            INFORMASI PUBLIK
+          </span>
+
+          <h2 id="ppidModalTitle">
+            Detail Informasi
+          </h2>
+
+        </div>
+
+
+        <button
+          type="button"
+          id="ppidModalClose"
+          class="ppid-modal-close"
+          aria-label="Tutup"
+        >
+
+          <i class="fa-solid fa-xmark"></i>
+
+        </button>
+
+      </div>
+
+
+      <div
+        id="modalContent"
+        class="ppid-modal-content"
+      ></div>
+
+    </div>
+
+  </div>
+
+
+
+  <!-- =======================================================
+       ACCESSIBILITY WIDGET
+  ======================================================== -->
+
+  <div class="accessibility-widget">
+
+
+    <!-- FLOATING BUTTON -->
+
+    <button
+      type="button"
+      id="accessibilityToggle"
+      class="accessibility-toggle"
+      aria-label="Pilih mode tampilan"
+      aria-expanded="false"
+    >
+
+      <span class="accessibility-toggle-icon">
+
+        <i class="fa-solid fa-universal-access"></i>
+
+      </span>
+
+      <span>
+        Pilih Mode
+      </span>
+
+    </button>
+
+
+
+    <!-- PANEL -->
+
+    <div
+      id="accessibilityPanel"
+      class="accessibility-panel"
+      aria-hidden="true"
+    >
+
+      <div class="accessibility-header">
+
+        <div class="accessibility-brand">
+
+          <strong>
+            DPMPTSP
+          </strong>
+
+          <small>
+            KOTA SURABAYA
+          </small>
+
+        </div>
+
+
+        <button
+          type="button"
+          id="accessibilityClose"
+          class="accessibility-close"
+        >
+          Tutup
+        </button>
+
+      </div>
+
+
+      <div class="accessibility-intro">
+
+        <div class="accessibility-info-icon">
+
+          <i class="fa-solid fa-info"></i>
+
+        </div>
+
+
+        <p>
+
+          Untuk memudahkan Anda menggunakan
+          situs ini, atur situs dengan mode
+          sesuai persona diri Anda!
+
+        </p>
+
+      </div>
+
+
+      <div class="accessibility-options">
+
+
+        <button
+          type="button"
+          class="accessibility-option active"
+          data-mode="normal"
+        >
+
+          <span class="option-check">
+
+            <i class="fa-solid fa-check"></i>
+
+          </span>
+
+          <span class="option-emoji">
+            👨🏻
+          </span>
+
+          <span class="option-title">
+            Normal
+          </span>
+
+        </button>
+
+
+        <button
+          type="button"
+          class="accessibility-option"
+          data-mode="colorblind"
+        >
+
+          <span class="option-check">
+
+            <i class="fa-solid fa-check"></i>
+
+          </span>
+
+          <span class="option-emoji">
+            👀
+          </span>
+
+          <span class="option-title">
+            Buta Warna
+          </span>
+
+        </button>
+
+
+        <button
+          type="button"
+          class="accessibility-option"
+          data-mode="elderly"
+        >
+
+          <span class="option-check">
+
+            <i class="fa-solid fa-check"></i>
+
+          </span>
+
+          <span class="option-emoji">
+            👴🏻
+          </span>
+
+          <span class="option-title">
+            Lansia
+          </span>
+
+        </button>
+
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+
+  <!-- =======================================================
+       SCRIPT
+  ======================================================== -->
+
+  <script>
+
+    /* =======================================================
+       PPID DETAIL MODAL
+    ======================================================== */
+
+    const ppidModal =
+      document.getElementById(
+        "ppidModal"
+      );
+
+    const ppidModalClose =
+      document.getElementById(
+        "ppidModalClose"
+      );
+
+    const modalContent =
+      document.getElementById(
+        "modalContent"
+      );
+
+    const modalTitle =
+      document.getElementById(
+        "ppidModalTitle"
+      );
+
+
+    const closePPIDModal = () => {
+
+      ppidModal?.classList.remove(
+        "show"
+      );
+
+      ppidModal?.setAttribute(
+        "aria-hidden",
+        "true"
+      );
+
+      document.body.classList.remove(
+        "modal-open"
+      );
+
+      if (modalContent) {
+        modalContent.innerHTML = "";
+      }
+
+    };
+
+
+    const openPPIDModal = (
+      title,
+      id
+    ) => {
+
+      const template =
+        document.getElementById(
+          `ppid-content-${id}`
+        );
+
+      if (!template) {
+        return;
+      }
+
+
+      if (modalTitle) {
+        modalTitle.textContent =
+          title ||
+          "Detail Informasi";
+      }
+
+
+      if (modalContent) {
+
+        modalContent.innerHTML =
+          template.innerHTML;
+
+      }
+
+
+      ppidModal?.classList.add(
+        "show"
+      );
+
+      ppidModal?.setAttribute(
+        "aria-hidden",
+        "false"
+      );
+
+      document.body.classList.add(
+        "modal-open"
+      );
+
+    };
+
+
+    document
+      .querySelectorAll(
+        ".detail-button"
+      )
+      .forEach((button) => {
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            openPPIDModal(
+              button.dataset.title,
+              button.dataset.id
+            );
+
+          }
+        );
+
+      });
+
+
+    ppidModalClose?.addEventListener(
+      "click",
+      closePPIDModal
+    );
+
+
+    document
+      .querySelector(
+        ".ppid-modal-backdrop"
+      )
+      ?.addEventListener(
+        "click",
+        closePPIDModal
+      );
+
+
+
+    /* =======================================================
+       ACCESSIBILITY
+    ======================================================== */
+
+    const accessibilityToggle =
+      document.getElementById(
+        "accessibilityToggle"
+      );
+
+    const accessibilityPanel =
+      document.getElementById(
+        "accessibilityPanel"
+      );
+
+    const accessibilityClose =
+      document.getElementById(
+        "accessibilityClose"
+      );
+
+    const accessibilityOptions =
+      document.querySelectorAll(
+        ".accessibility-option"
+      );
+
+
+    const openAccessibility = () => {
+
+      accessibilityPanel?.classList.add(
+        "show"
+      );
+
+      accessibilityPanel?.setAttribute(
+        "aria-hidden",
+        "false"
+      );
+
+      accessibilityToggle?.setAttribute(
+        "aria-expanded",
+        "true"
+      );
+
+    };
+
+
+    const closeAccessibility = () => {
+
+      accessibilityPanel?.classList.remove(
+        "show"
+      );
+
+      accessibilityPanel?.setAttribute(
+        "aria-hidden",
+        "true"
+      );
+
+      accessibilityToggle?.setAttribute(
+        "aria-expanded",
+        "false"
+      );
+
+    };
+
+
+    accessibilityToggle?.addEventListener(
+      "click",
+      () => {
+
+        if (
+          accessibilityPanel?.classList.contains(
+            "show"
+          )
+        ) {
+
+          closeAccessibility();
+
+        } else {
+
+          openAccessibility();
+
+        }
+
+      }
+    );
+
+
+    accessibilityClose?.addEventListener(
+      "click",
+      closeAccessibility
+    );
+
+
+    /* =======================================================
+       APPLY MODE
+    ======================================================== */
+
+    const applyAccessibilityMode =
+      (mode) => {
+
+        document.documentElement.classList.remove(
+          "access-normal",
+          "access-colorblind",
+          "access-elderly"
+        );
+
+
+        if (
+          mode === "colorblind"
+        ) {
+
+          document.documentElement.classList.add(
+            "access-colorblind"
+          );
+
+        }
+
+
+        if (
+          mode === "elderly"
+        ) {
+
+          document.documentElement.classList.add(
+            "access-elderly"
+          );
+
+        }
+
+
+        accessibilityOptions.forEach(
+          (option) => {
+
+            option.classList.toggle(
+              "active",
+              option.dataset.mode === mode
+            );
+
+          }
+        );
+
+
+        try {
+
+          localStorage.setItem(
+            "dpmptsp-accessibility-mode",
+            mode
+          );
+
+        } catch {}
+
+      };
+
+
+    accessibilityOptions.forEach(
+      (option) => {
+
+        option.addEventListener(
+          "click",
+          () => {
+
+            const mode =
+              option.dataset.mode ||
+              "normal";
+
+            applyAccessibilityMode(
+              mode
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+    /* =======================================================
+       LOAD SAVED MODE
+    ======================================================== */
+
+    let savedMode = "normal";
+
+    try {
+
+      savedMode =
+        localStorage.getItem(
+          "dpmptsp-accessibility-mode"
+        ) ||
+        "normal";
+
+    } catch {}
+
+
+    applyAccessibilityMode(
+      savedMode
+    );
+
+
+    /* =======================================================
+       ESC
+    ======================================================== */
+
+    document.addEventListener(
+      "keydown",
+      (event) => {
+
+        if (
+          event.key === "Escape"
+        ) {
+
+          closeAccessibility();
+
+          closePPIDModal();
+
+        }
+
+      }
+    );
+
+  </script>
+
+</MainLayout>
+
+
+<style>
+
+/* =========================================================
+   ROOT
+========================================================= */
+
+:global(html) {
+  scroll-behavior: smooth;
+}
+
+:global(body) {
+  margin: 0;
+  color: #334155;
+  background: #f8fafc;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+:global(body.modal-open) {
+  overflow: hidden;
+}
+
+:global(a) {
+  text-decoration: none;
+}
+
+:global(button),
+:global(a) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+
+/* =========================================================
+   CONTAINER
+========================================================= */
+
+.container {
+  width:
+    min(
+      1180px,
+      calc(100% - 40px)
+    );
+
+  margin-inline: auto;
+}
+
+
+/* =========================================================
+   HERO
+========================================================= */
+
+.ppid-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 90px 0 100px;
+  background:
+    linear-gradient(
+      135deg,
+      #063b86 0%,
+      #0b63c7 52%,
+      #1676d2 100%
+    );
+
+  color: #fff;
+}
+
+
+.hero-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+
+.hero-orb-one {
+  width: 420px;
+  height: 420px;
+  right: -180px;
+  top: -190px;
+  background: rgba(255,255,255,.07);
+}
+
+
+.hero-orb-two {
+  width: 280px;
+  height: 280px;
+  left: -140px;
+  bottom: -160px;
+  background: rgba(255,255,255,.06);
+}
+
+
+.hero-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.45fr)
+    minmax(280px, .75fr);
+  gap: 70px;
+  align-items: center;
+}
+
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 13px;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 999px;
+  background: rgba(255,255,255,.1);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+
+.hero-badge span {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff;
+  color: #0b63c7;
+}
+
+
+.hero-content h1 {
+  max-width: 760px;
+  margin: 22px 0 18px;
+  font-size: clamp(38px, 5vw, 64px);
+  line-height: 1.08;
+  letter-spacing: -.045em;
+}
+
+
+.hero-content h1 span {
+  display: block;
+  color: #ffd41d;
+}
+
+
+.hero-description {
+  max-width: 680px;
+  margin: 0;
+  color: rgba(255,255,255,.9);
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+
+.hero-button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 20px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 800;
+  transition: .2s ease;
+}
+
+
+.hero-button.primary {
+  background: #ffd41d;
+  color: #172554;
+}
+
+
+.hero-button.secondary {
+  border: 1px solid rgba(255,255,255,.45);
+  background: rgba(255,255,255,.1);
+  color: #fff;
+}
+
+
+.hero-button:hover {
+  transform: translateY(-2px);
+}
+
+
+.hero-card {
+  padding: 34px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 22px;
+  background: rgba(255,255,255,.1);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 25px 60px rgba(0,0,0,.15);
+}
+
+
+.hero-card-icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 22px;
+  border-radius: 18px;
+  background: #fff;
+  color: #0b63c7;
+  font-size: 26px;
+}
+
+
+.hero-card strong {
+  display: block;
+  font-size: 22px;
+}
+
+
+.hero-card > span {
+  display: block;
+  margin-top: 4px;
+  color: rgba(255,255,255,.75);
+  font-size: 12px;
+}
+
+
+.hero-card-line {
+  width: 50px;
+  height: 3px;
+  margin: 22px 0;
+  border-radius: 10px;
+  background: #ffd41d;
+}
+
+
+.hero-card small {
+  color: rgba(255,255,255,.82);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+
+/* =========================================================
+   ERROR
+========================================================= */
+
+.api-error {
+  padding: 20px 0 0;
+}
+
+
+.error-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fff1f2;
+  color: #991b1b;
+}
+
+
+.error-box > i {
+  margin-top: 4px;
+}
+
+
+.error-box strong {
+  display: block;
+  font-size: 14px;
+}
+
+
+.error-box p {
+  margin: 3px 0 0;
+  font-size: 12px;
+}
+
+
+/* =========================================================
+   CATEGORY
+========================================================= */
+
+.category-section {
+  padding: 90px 0 80px;
+  background:
+    linear-gradient(
+      180deg,
+      #fff 0%,
+      #f7fbff 100%
+    );
+  scroll-margin-top: 100px;
+}
+
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 40px;
+}
+
+
+.section-eyebrow {
+  display: inline-block;
+  margin-bottom: 9px;
+  color: #0b63c7;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+
+.section-heading h2 {
+  margin: 0;
+  color: #172554;
+  font-size: clamp(30px, 4vw, 42px);
+  line-height: 1.15;
+  letter-spacing: -.035em;
+}
+
+
+.section-heading h2 span {
+  color: #0b63c7;
+}
+
+
+.section-heading > p {
+  max-width: 390px;
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+
+.information-guide {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 28px 0 20px;
+  padding: 11px 15px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+
+.guide-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #0b63c7;
+  color: #fff;
+}
+
+
+/*
+ * TETAP 4 KATEGORI
+ */
+
+.category-scroll {
+  width: 100%;
+}
+
+
+.category-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+
+.category-card {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 25px 20px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow:
+    0 8px 30px rgba(15,23,42,.05);
+  color: inherit;
+  transition:
+    transform .2s ease,
+    box-shadow .2s ease,
+    border-color .2s ease;
+}
+
+
+.category-card:hover {
+  transform: translateY(-5px);
+  border-color: #93c5fd;
+  box-shadow:
+    0 18px 40px rgba(15,23,42,.1);
+}
+
+
+.category-top-line {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: #0b63c7;
+}
+
+
+.category-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: #eff6ff;
+  color: #0b63c7;
+  font-size: 21px;
+}
+
+
+.category-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+
+.category-content h3 {
+  margin: 0;
+  color: #172554;
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+
+.category-content p {
+  margin: 9px 0 20px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+
+.category-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+
+.category-bottom strong {
+  color: #0b63c7;
+  font-size: 16px;
+}
+
+
+.category-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #0b63c7;
+  font-weight: 800;
+}
+
+
+/* =========================================================
+   INFORMATION
+========================================================= */
+
+.information-section {
+  padding: 80px 0;
+  background: #f8fafc;
+}
+
+
+.information-layout {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    320px;
+  gap: 30px;
+  align-items: start;
+}
+
+
+.information-main {
+  min-width: 0;
+}
+
+
+.db-category {
+  margin-bottom: 34px;
+  scroll-margin-top: 100px;
+}
+
+
+.db-category-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  margin-bottom: 16px;
+  padding: 22px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: #fff;
+}
+
+
+.db-category-icon {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #0b63c7;
+  font-size: 18px;
+}
+
+
+.db-category-heading span {
+  display: block;
+  margin-bottom: 2px;
+  color: #0b63c7;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .1em;
+}
+
+
+.db-category-heading h2 {
+  margin: 0;
+  color: #172554;
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+
+.db-category-heading p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+
+.db-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+
+.db-item {
+  display: grid;
+  grid-template-columns:
+    44px minmax(0,1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 17px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  transition: .2s ease;
+}
+
+
+.db-item:hover {
+  border-color: #bfdbfe;
+  box-shadow:
+    0 8px 25px rgba(15,23,42,.06);
+}
+
+
+.db-item-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #f1f5f9;
+  color: #0b63c7;
+}
+
+
+.db-item-content {
+  min-width: 0;
+}
+
+
+.db-item-content small {
+  display: block;
+  margin-bottom: 3px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+
+.db-item-content h3 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+
+.db-item-description {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+
+.db-item-action {
+  flex-shrink: 0;
+}
+
+
+.download-button,
+.detail-button {
+  min-width: 82px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 8px;
+  background: #0b63c7;
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: .2s ease;
+}
+
+
+.download-button:hover,
+.detail-button:hover {
+  background: #084f9f;
+  transform: translateY(-1px);
+}
+
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 170px;
+  padding: 25px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  color: #64748b;
+  text-align: center;
+}
+
+
+.empty-state i {
+  margin-bottom: 10px;
+  color: #94a3b8;
+  font-size: 30px;
+}
+
+
+.empty-state strong {
+  color: #334155;
+  font-size: 14px;
+}
+
+
+.empty-state span {
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+
+/* =========================================================
+   SIDEBAR
+========================================================= */
+
+.information-sidebar {
+  position: sticky;
+  top: 110px;
+}
+
+
+.contact-card {
+  overflow: hidden;
+  padding: 22px;
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      145deg,
+      #063b86,
+      #0b63c7
+    );
+  color: #fff;
+  box-shadow:
+    0 15px 35px rgba(11,99,199,.18);
+}
+
+
+.contact-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(255,255,255,.18);
+}
+
+
+.contact-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: rgba(255,255,255,.14);
+  font-size: 18px;
+}
+
+
+.contact-card-header small {
+  display: block;
+  color: #bfdbfe;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .1em;
+}
+
+
+.contact-card-header h3 {
+  margin: 2px 0 0;
+  font-size: 20px;
+}
+
+
+.contact-list {
+  padding-top: 5px;
+}
+
+
+.contact-item {
+  display: flex;
+  gap: 11px;
+  padding: 13px 0;
+}
+
+
+.contact-item > span {
+  width: 27px;
+  height: 27px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(255,255,255,.1);
+  color: #ffd41d;
+  font-size: 11px;
+}
+
+
+.contact-item strong {
+  display: block;
+  font-size: 12px;
+}
+
+
+.contact-item p,
+.contact-item a {
+  display: block;
+  margin: 2px 0 0;
+  color: rgba(255,255,255,.8);
+  font-size: 11px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+
+.contact-item a:hover {
+  color: #ffd41d;
+}
+
+
+.social-title {
+  margin-top: 9px;
+  padding-top: 17px;
+  border-top: 1px solid rgba(255,255,255,.18);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+
+.social-links {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+
+.social-links a {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff;
+  color: #0b63c7;
+  font-size: 14px;
+  transition: .2s ease;
+}
+
+
+.social-links a:hover {
+  transform: translateY(-3px);
+  background: #ffd41d;
+  color: #172554;
+}
+
+
+.request-card {
+  margin-top: 15px;
+  padding: 22px;
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  background: #fff;
+}
+
+
+.request-icon {
+  width: 45px;
+  height: 45px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 13px;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #0b63c7;
+  font-size: 18px;
+}
+
+
+.request-card h3 {
+  margin: 0;
+  color: #172554;
+  font-size: 17px;
+}
+
+
+.request-card p {
+  margin: 6px 0 17px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+
+.request-button {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: #0b63c7;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+
+.request-button:hover {
+  background: #084f9f;
+}
+
+
+/* =========================================================
+   COMMITMENT
+========================================================= */
+
+.commitment-section {
+  padding: 60px 0;
+  background: #fff;
+}
+
+
+.commitment-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 30px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #eff6ff;
+}
+
+
+.commitment-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 15px;
+  background: #0b63c7;
+  color: #fff;
+  font-size: 22px;
+}
+
+
+.commitment-box span {
+  color: #0b63c7;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .1em;
+}
+
+
+.commitment-box h2 {
+  margin: 3px 0 5px;
+  color: #172554;
+  font-size: 24px;
+}
+
+
+.commitment-box p {
+  max-width: 760px;
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+
+/* =========================================================
+   MODAL
+========================================================= */
+
+.ppid-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 99995;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  visibility: hidden;
+  transition: .2s ease;
+}
+
+
+.ppid-modal.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+
+.ppid-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15,23,42,.7);
+}
+
+
+.ppid-modal-dialog {
+  position: relative;
+  z-index: 2;
+  width: min(850px, 100%);
+  max-height: 88vh;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow:
+    0 30px 90px rgba(0,0,0,.25);
+  transform: translateY(15px) scale(.98);
+  transition: .2s ease;
+}
+
+
+.ppid-modal.show
+.ppid-modal-dialog {
+  transform: translateY(0) scale(1);
+}
+
+
+.ppid-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+
+.ppid-modal-header span {
+  display: block;
+  color: #0b63c7;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .1em;
+}
+
+
+.ppid-modal-header h2 {
+  margin: 2px 0 0;
+  color: #172554;
+  font-size: 22px;
+  line-height: 1.4;
+}
+
+
+.ppid-modal-close {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 9px;
+  background: #f1f5f9;
+  color: #475569;
+  cursor: pointer;
+}
+
+
+.ppid-modal-content {
+  max-height: calc(88vh - 100px);
+  overflow-y: auto;
+  padding: 25px;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+
+.ppid-modal-content :global(img) {
+  max-width: 100%;
+  height: auto;
+}
+
+
+.ppid-modal-content :global(table) {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+
+.ppid-modal-content :global(th),
+.ppid-modal-content :global(td) {
+  padding: 9px;
+  border: 1px solid #e2e8f0;
+}
+
+
+/* =========================================================
+   ACCESSIBILITY BUTTON
+========================================================= */
+
+.accessibility-widget {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 99990;
+}
+
+
+.accessibility-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 999px;
+  background: #0b63c7;
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow:
+    0 8px 25px rgba(15,23,42,.2);
+  transition: .2s ease;
+}
+
+
+.accessibility-toggle:hover {
+  background: #084f9f;
+  transform: translateY(-2px);
+}
+
+
+.accessibility-toggle-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff;
+  color: #0b63c7;
+  font-size: 14px;
+}
+
+
+/* =========================================================
+   ACCESSIBILITY PANEL
+========================================================= */
+
+.accessibility-panel {
+  position: fixed;
+  right: 22px;
+  bottom: 78px;
+  width: min(390px, calc(100vw - 30px));
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid #dbeafe;
+  background: #fff;
+  box-shadow:
+    0 25px 70px rgba(15,23,42,.25);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(15px) scale(.97);
+  transition: .2s ease;
+}
+
+
+.accessibility-panel.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+
+.accessibility-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 18px;
+}
+
+
+.accessibility-brand {
+  display: flex;
+  flex-direction: column;
+  color: #174ea6;
+}
+
+
+.accessibility-brand strong {
+  font-size: 21px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -.04em;
+}
+
+
+.accessibility-brand small {
+  margin-top: 3px;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .35em;
+}
+
+
+.accessibility-close {
+  min-height: 34px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+
+.accessibility-intro {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 18px;
+}
+
+
+.accessibility-info-icon {
+  width: 43px;
+  height: 43px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 3px solid #2563eb;
+  border-radius: 50%;
+  color: #2563eb;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+
+.accessibility-intro p {
+  margin: 0;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.55;
+  font-weight: 600;
+}
+
+
+.accessibility-options {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+
+.accessibility-option {
+  position: relative;
+  width: 100%;
+  min-height: 57px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 0 15px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: .2s ease;
+}
+
+
+.accessibility-option:hover {
+  border-color: #93c5fd;
+  background: #f8fbff;
+}
+
+
+.accessibility-option.active {
+  border: 2px solid #22c55e;
+  background: #dcfce7;
+}
+
+
+.option-check {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  background: #fff;
+  color: #fff;
+  font-size: 11px;
+}
+
+
+.accessibility-option.active
+.option-check {
+  border-color: #16a34a;
+  background: #16a34a;
+}
+
+
+.option-emoji {
+  width: 30px;
+  font-size: 21px;
+  text-align: center;
+}
+
+
+.option-title {
+  color: #1e293b;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+
+/* =========================================================
+   COLOR BLIND
+========================================================= */
+
+:global(html.access-colorblind) .ppid-page {
+  filter: contrast(1.08);
+}
+
+
+:global(html.access-colorblind) a {
+  text-decoration-thickness: 2px;
+}
+
+
+:global(html.access-colorblind)
+.download-button,
+:global(html.access-colorblind)
+.detail-button {
+  border: 2px solid currentColor;
+}
+
+
+/* =========================================================
+   ELDERLY
+========================================================= */
+
+:global(html.access-elderly) {
+  font-size: 118%;
+}
+
+
+:global(html.access-elderly)
+.ppid-page {
+  letter-spacing: .01em;
+}
+
+
+:global(html.access-elderly)
+.hero-description {
+  font-size: 19px;
+}
+
+
+:global(html.access-elderly)
+.category-content h3 {
+  font-size: 19px;
+}
+
+
+:global(html.access-elderly)
+.category-content p {
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+
+:global(html.access-elderly)
+.db-item-content h3 {
+  font-size: 17px;
+  line-height: 1.65;
+}
+
+
+:global(html.access-elderly)
+.db-item-description {
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+
+:global(html.access-elderly)
+.contact-item p,
+:global(html.access-elderly)
+.contact-item a {
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+
+:global(html.access-elderly)
+.download-button,
+:global(html.access-elderly)
+.detail-button {
+  min-width: 105px;
+  min-height: 48px;
+  font-size: 13px;
+}
+
+
+/* =========================================================
+   TABLET
+========================================================= */
+
+@media (max-width: 1000px) {
+
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 35px;
+  }
+
+
+  .hero-card {
+    max-width: 600px;
+  }
+
+
+  .information-layout {
+    grid-template-columns: 1fr;
+  }
+
+
+  .information-sidebar {
+    position: static;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+  }
+
+
+  .request-card {
+    margin-top: 0;
+  }
+
+
+  /*
+   * TETAP 4 KATEGORI
+   * tetapi dapat discroll jika layar sempit
+   */
+
+  .category-scroll {
+    overflow-x: auto;
+    padding-bottom: 12px;
+    scrollbar-width: thin;
+  }
+
+
+  .category-grid {
+    grid-template-columns:
+      repeat(4, minmax(210px, 1fr));
+    width: max-content;
+  }
+
+
+  .category-card {
+    width: 210px;
+  }
+
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 650px) {
+
+  .container {
+    width:
+      min(
+        100% - 28px,
+        1180px
+      );
+  }
+
+
+  .ppid-hero {
+    padding: 60px 0 65px;
+  }
+
+
+  .hero-content h1 {
+    font-size: 39px;
+  }
+
+
+  .hero-description {
+    font-size: 15px;
+  }
+
+
+  .hero-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+
+  .hero-button {
+    width: 100%;
+    min-height: 50px;
+  }
+
+
+  .hero-card {
+    padding: 25px;
+  }
+
+
+  .category-section {
+    padding: 60px 0;
+  }
+
+
+  .section-heading {
+    display: block;
+  }
+
+
+  .section-heading > p {
+    margin-top: 12px;
+  }
+
+
+  .information-guide {
+    align-items: flex-start;
+  }
+
+
+  /*
+   * EMPAT KATEGORI TETAP EMPAT
+   */
+
+  .category-grid {
+    grid-template-columns:
+      repeat(4, 205px);
+    gap: 12px;
+  }
+
+
+  .category-card {
+    width: 205px;
+    padding: 22px 17px 18px;
+  }
+
+
+  .category-content h3 {
+    font-size: 16px;
+  }
+
+
+  .category-content p {
+    font-size: 12px;
+  }
+
+
+  .information-section {
+    padding: 55px 0;
+  }
+
+
+  .db-category-heading {
+    padding: 18px;
+  }
+
+
+  .db-category-heading h2 {
+    font-size: 19px;
+  }
+
+
+  /*
+   * ITEM MOBILE
+   */
+
+  .db-item {
+    grid-template-columns:
+      42px minmax(0,1fr);
+
+    align-items: start;
+
+    gap: 11px;
+
+    padding: 15px;
+  }
+
+
+  .db-item-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+
+  .db-item-action {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+
+  .download-button,
+  .detail-button {
+    width: 100%;
+    min-height: 47px;
+  }
+
+
+  .information-sidebar {
+    display: block;
+  }
+
+
+  .request-card {
+    margin-top: 15px;
+  }
+
+
+  .commitment-box {
+    flex-direction: column;
+    padding: 24px;
+  }
+
+
+  .commitment-box h2 {
+    font-size: 21px;
+  }
+
+
+  .commitment-box p {
+    font-size: 12px;
+  }
+
+
+  /*
+   * ACCESSIBILITY
+   */
+
+  .accessibility-widget {
+    right: 14px;
+    bottom: 14px;
+  }
+
+
+  .accessibility-toggle {
+    min-height: 46px;
+    padding: 0 14px;
+  }
+
+
+  .accessibility-panel {
+    right: 15px;
+    left: 15px;
+    bottom: 70px;
+    width: auto;
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+
+  .accessibility-option {
+    min-height: 58px;
+  }
+
+
+  .ppid-modal {
+    padding: 10px;
+  }
+
+
+  .ppid-modal-dialog {
+    max-height: 94vh;
+    border-radius: 14px;
+  }
+
+
+  .ppid-modal-content {
+    max-height: calc(94vh - 95px);
+    padding: 18px;
+    font-size: 14px;
+  }
+
+}
+
+
+/* =========================================================
+   SMALL PHONE
+========================================================= */
+
+@media (max-width: 380px) {
+
+  .hero-content h1 {
+    font-size: 34px;
+  }
+
+
+  .accessibility-toggle {
+    width: 46px;
+    height: 46px;
+    min-height: 46px;
+    padding: 0;
+    justify-content: center;
+  }
+
+
+  .accessibility-toggle span:last-child {
+    display: none;
+  }
+
+
+  .accessibility-panel {
+    left: 10px;
+    right: 10px;
+  }
+
+}
+
+
+/* =========================================================
+   FOCUS ACCESSIBILITY
+========================================================= */
+
+:global(a:focus-visible),
+:global(button:focus-visible) {
+  outline:
+    3px solid #ffd41d;
+
+  outline-offset:
+    3px;
+}
+
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+
+}
+
+</style>
